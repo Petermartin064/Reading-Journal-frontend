@@ -1,28 +1,105 @@
 import React, { useState, useEffect } from 'react';
-import { Square } from 'lucide-react';
+import { Square, Play, Pause, AlertTriangle, RefreshCcw } from 'lucide-react';
 import { fetchClient } from '../api/fetchClient';
 
-const formatElapsed = (startedAt) => {
-  const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+const formatElapsed = (session) => {
+  if (!session?.started_at) return '00:00:00';
+  
+  const startTime = new Date(session.started_at).getTime();
+  const now = Date.now();
+  let diff = Math.floor((now - startTime) / 1000);
+  
+  let totalPaused = session.total_paused_seconds || 0;
+  if (session.is_paused && session.last_paused_at) {
+    const pauseTime = new Date(session.last_paused_at).getTime();
+    totalPaused += Math.floor((now - pauseTime) / 1000);
+  }
+  
+  diff = Math.max(0, diff - totalPaused);
+  
   const h = Math.floor(diff / 3600);
   const m = Math.floor((diff % 3600) / 60);
   const s = diff % 60;
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-const ActiveSessionBanner = ({ session, onSessionEnd }) => {
-  const [elapsed, setElapsed] = useState(formatElapsed(session.started_at));
+const ActiveSessionBanner = ({ session, onSessionEnd, onSessionUpdate }) => {
+  const [elapsed, setElapsed] = useState(formatElapsed(session));
   const [notes, setNotes] = useState('');
   const [endPage, setEndPage] = useState('');
   const [stopping, setStopping] = useState(false);
+  const [pausing, setPausing] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [isStale, setIsStale] = useState(false);
+
+  useEffect(() => {
+    if (session.last_heartbeat_at) {
+      const hbTime = new Date(session.last_heartbeat_at).getTime();
+      if (Date.now() - hbTime > 300000) { // 5 minutes
+        setIsStale(true);
+      }
+    }
+  }, [session.last_heartbeat_at]);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setElapsed(formatElapsed(session.started_at));
+      setElapsed(formatElapsed(session));
     }, 1000);
     return () => clearInterval(timer);
-  }, [session.started_at]);
+  }, [session]);
+
+  useEffect(() => {
+    const hbTimer = setInterval(() => {
+      if (!session.is_paused && !isStale) {
+        fetchClient('/sessions/heartbeat/', { method: 'POST' }).catch(() => {});
+      }
+    }, 30000);
+    return () => clearInterval(hbTimer);
+  }, [session.is_paused, isStale]);
+
+  const handleRecover = async () => {
+    try {
+      await fetchClient('/sessions/heartbeat/', { method: 'POST' });
+      setIsStale(false);
+      const res = await fetchClient('/sessions/active/');
+      if (res?.status === 'success') onSessionUpdate(res.data);
+    } catch (e) {
+      console.error('Failed to recover session:', e);
+    }
+  };
+
+  const handleEndStale = async () => {
+    setStopping(true);
+    try {
+      await fetchClient('/sessions/end/', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          end_time: session.last_heartbeat_at,
+          notes: 'Session recovered after interruption.'
+        }),
+      });
+      onSessionEnd();
+    } catch (e) {
+      console.error('Failed to end stale session:', e);
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  const handleTogglePause = async () => {
+    setPausing(true);
+    try {
+      const endpoint = session.is_paused ? '/sessions/resume/' : '/sessions/pause/';
+      const res = await fetchClient(endpoint, { method: 'POST' });
+      if (res?.status === 'success') {
+        onSessionUpdate(res.data);
+      }
+    } catch (e) {
+      console.error('Failed to toggle pause:', e);
+    } finally {
+      setPausing(false);
+    }
+  };
 
   const handleStop = async () => {
     setStopping(true);
@@ -42,17 +119,56 @@ const ActiveSessionBanner = ({ session, onSessionEnd }) => {
     }
   };
 
+  if (isStale) {
+    return (
+      <div className="surface-card border-l-4 border-l-yellow-500 p-6 mb-8 bg-yellow-50/30 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className="bg-yellow-500 p-2 rounded-xl text-white shadow-lg shadow-yellow-500/20">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <h3 className="text-lg font-serif text-text-primary font-bold">Session Interrupted</h3>
+              <p className="text-sm text-text-muted max-w-md">
+                We noticed this session was inactive for a while (maybe a shutdown?). 
+                Last known activity was at <span className="font-bold">{new Date(session.last_heartbeat_at).toLocaleTimeString()}</span>.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleEndStale}
+              disabled={stopping}
+              className="px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest text-text-muted hover:text-text-primary transition-all border border-surface-border"
+            >
+              {stopping ? '...' : 'End at Last Activity'}
+            </button>
+            <button
+              onClick={handleRecover}
+              className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold uppercase tracking-widest py-3 px-8 rounded-xl transition-all shadow-lg shadow-yellow-500/20"
+            >
+              <RefreshCcw size={14} />
+              Resume Now
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="surface-card border-l-4 border-l-primary p-5 mb-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           {/* Pulsing live dot */}
           <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${session.is_paused ? 'bg-yellow-500' : 'bg-primary'}`}></span>
+            <span className={`relative inline-flex rounded-full h-3 w-3 ${session.is_paused ? 'bg-yellow-500' : 'bg-primary'}`}></span>
           </span>
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-primary mb-0.5">Session In Progress</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-primary mb-0.5">
+              {session.is_paused ? 'Session Paused' : 'Session In Progress'}
+            </p>
             <p className="text-text-primary font-serif">
               {session.book ? (
                 <>Reading <span className="font-bold">{session.book_title || 'a book'}</span></>
@@ -64,7 +180,9 @@ const ActiveSessionBanner = ({ session, onSessionEnd }) => {
               <p className="text-[10px] text-text-muted italic">Started at page {session.start_page}</p>
             )}
           </div>
-          <span className="font-mono text-2xl font-bold text-text-primary pl-4 border-l border-surface-border">{elapsed}</span>
+          <span className={`font-mono text-2xl font-bold pl-4 border-l border-surface-border transition-colors ${session.is_paused ? 'text-text-muted' : 'text-text-primary'}`}>
+            {elapsed}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -86,6 +204,20 @@ const ActiveSessionBanner = ({ session, onSessionEnd }) => {
           >
             {showNotes ? 'Close Notes' : 'Add Notes'}
           </button>
+          
+          <button
+            onClick={handleTogglePause}
+            disabled={pausing}
+            className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest py-2.5 px-4 rounded-xl transition-all shadow-md ${
+              session.is_paused 
+                ? 'bg-yellow-500 hover:bg-yellow-600 text-white' 
+                : 'bg-surface border border-surface-border text-text-primary hover:bg-surface-hover'
+            }`}
+          >
+            {session.is_paused ? <Play size={12} fill="white" /> : <Pause size={12} />}
+            {pausing ? '...' : (session.is_paused ? 'Resume' : 'Pause')}
+          </button>
+
           <button
             onClick={handleStop}
             disabled={stopping}

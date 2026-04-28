@@ -103,6 +103,10 @@ const Dashboard = () => {
     return -1;
   };
 
+  const handleSessionUpdate = (updatedSession) => {
+    setActiveSession(updatedSession);
+  };
+
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric'
   });
@@ -133,7 +137,11 @@ const Dashboard = () => {
 
       {/* Active Session Banner */}
       {activeSession && (
-        <ActiveSessionBanner session={activeSession} onSessionEnd={handleSessionEnd} />
+        <ActiveSessionBanner 
+          session={activeSession} 
+          onSessionEnd={handleSessionEnd} 
+          onSessionUpdate={handleSessionUpdate}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-5xl mx-auto">
