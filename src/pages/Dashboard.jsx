@@ -153,9 +153,17 @@ const Dashboard = () => {
           </h2>
 
           {schedules.length === 0 ? (
-            <div className="surface-card p-12 text-center border-dashed border-2 bg-transparent">
-              <BookOpen className="w-10 h-10 mx-auto text-text-muted mb-4 opacity-40" />
-              <p className="text-text-muted font-medium">No sessions scheduled for today.</p>
+            <div className="surface-card p-12 text-center flex flex-col items-center justify-center bg-surface/30 border-dashed border-2 border-surface-border">
+              <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center mb-6">
+                <CalendarIcon className="w-8 h-8 text-text-muted opacity-40" />
+              </div>
+              <h3 className="text-sm font-serif font-bold text-text-primary mb-2 tracking-wide">Your slate is clean today</h3>
+              <p className="text-[11px] text-text-muted max-w-[240px] mb-8 leading-relaxed">
+                Take control of your reading journey by adding structured sessions to your weekly schedule.
+              </p>
+              <Link to="/app/schedule" className="px-8 py-3 bg-primary text-white text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-md hover:bg-primary-hover hover:-translate-y-0.5 transition-all duration-200">
+                Plan My Week
+              </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -208,9 +216,10 @@ const Dashboard = () => {
                 </div>
               ))
             ) : (
-              <Link to="/app/bookshelf" className="surface-card p-6 text-center bg-surface/40 border-dashed border-2 block hover:bg-surface/60 transition-colors">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">No active books</p>
-                <p className="text-[9px] text-primary font-bold uppercase mt-1">Pick one from shelf</p>
+              <Link to="/app/bookshelf" className="surface-card p-10 text-center bg-surface/20 border-dashed border-2 border-surface-border block group hover:bg-surface/40 transition-all duration-300">
+                <Library className="w-8 h-8 mx-auto text-text-muted mb-4 opacity-30 group-hover:scale-110 transition-transform" />
+                <p className="text-[10px] font-bold uppercase tracking-widest text-text-primary mb-1">Your shelf is waiting</p>
+                <p className="text-[9px] text-primary font-bold uppercase group-hover:underline">Browse Library</p>
               </Link>
             )}
           </div>
