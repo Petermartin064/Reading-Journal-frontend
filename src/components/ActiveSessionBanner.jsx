@@ -35,7 +35,7 @@ const ActiveSessionBanner = ({ session, onSessionEnd, onSessionUpdate }) => {
   useEffect(() => {
     if (session.last_heartbeat_at) {
       const hbTime = new Date(session.last_heartbeat_at).getTime();
-      if (Date.now() - hbTime > 300000) { // 5 minutes
+      if (Date.now() - hbTime > 60000) { // 1 minute
         setIsStale(true);
       }
     }

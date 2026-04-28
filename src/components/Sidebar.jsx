@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, BarChart2, History, CalendarDays, Library, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { fetchClient } from '../api/fetchClient';
 
 const navItems = [
   { to: '/app/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -17,6 +18,15 @@ const Sidebar = () => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
+    // Try to end any active session before logging out
+    try {
+      await fetchClient('/sessions/end/', {
+        method: 'POST',
+        body: JSON.stringify({ notes: 'Auto-ended on logout.' }),
+      });
+    } catch (e) {
+      // Ignore if no active session found
+    }
     await logout();
     navigate('/login');
   };
