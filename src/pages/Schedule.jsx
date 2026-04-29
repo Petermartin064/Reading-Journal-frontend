@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchClient } from '../api/fetchClient';
-import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, AlertTriangle } from 'lucide-react';
+import Modal from '../components/Modal';
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const SESSION_TYPES = ['Career', 'Self-Dev'];
@@ -153,6 +154,7 @@ const Schedule = () => {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addingDay, setAddingDay] = useState(null); // day index being added to
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
 
   useEffect(() => {
     fetchClient('/schedule/')
@@ -168,10 +170,20 @@ const Schedule = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this session from your schedule?')) return;
-    await fetchClient(`/schedule/${id}/`, { method: 'DELETE' });
-    setSchedules(prev => prev.filter(s => s.id !== id));
+  const requestDelete = (id) => {
+    setDeleteModal({ isOpen: true, id });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.id) return;
+    try {
+      await fetchClient(`/schedule/${deleteModal.id}/`, { method: 'DELETE' });
+      setSchedules(prev => prev.filter(s => s.id !== deleteModal.id));
+    } catch (e) {
+      console.error('Failed to delete:', e);
+    } finally {
+      setDeleteModal({ isOpen: false, id: null });
+    }
   };
 
   const handleAdd = async (form) => {
@@ -222,7 +234,7 @@ const Schedule = () => {
               )}
 
               {byDay[dayIndex].map(entry => (
-                <ScheduleRow key={entry.id} entry={entry} onSave={handleSave} onDelete={handleDelete} />
+                <ScheduleRow key={entry.id} entry={entry} onSave={handleSave} onDelete={requestDelete} />
               ))}
 
               {addingDay === dayIndex && (
@@ -232,6 +244,40 @@ const Schedule = () => {
           </div>
         ))}
       </div>
+
+      <Modal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, id: null })}
+        title="Confirm Deletion"
+        footer={
+          <>
+            <button
+              onClick={() => setDeleteModal({ isOpen: false, id: null })}
+              className="px-4 py-2 text-xs font-bold text-text-muted hover:text-text-primary transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDelete}
+              className="px-6 py-2 bg-red-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-red-600 shadow-md transition-all"
+            >
+              Delete Session
+            </button>
+          </>
+        }
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="text-red-500" size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-serif font-bold text-text-primary mb-1">Remove this session?</p>
+            <p className="text-xs text-text-muted leading-relaxed">
+              This will permanently delete this session from your weekly schedule. This action cannot be undone.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
