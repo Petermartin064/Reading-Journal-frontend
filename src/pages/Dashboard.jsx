@@ -14,6 +14,15 @@ const getGreeting = () => {
   return 'Good evening';
 };
 
+const isSessionLapsed = (endTimeStr) => {
+  if (!endTimeStr) return false;
+  const [h, m] = endTimeStr.split(':');
+  const now = new Date();
+  const sessionEnd = new Date();
+  sessionEnd.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+  return now >= sessionEnd;
+};
+
 const Dashboard = () => {
   const { user, logout } = useAuthStore();
   const [schedules, setSchedules] = useState([]);
@@ -91,12 +100,14 @@ const Dashboard = () => {
     });
   };
 
+  const displayedSchedules = schedules.filter(session => !isSessionLapsed(session.end_time));
+
   const getNextSessionIndex = () => {
-    if (!schedules.length) return -1;
+    if (!displayedSchedules.length) return -1;
     const now = new Date();
     const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
-    for (let i = 0; i < schedules.length; i++) {
-      const [h, m] = schedules[i].start_time.split(':');
+    for (let i = 0; i < displayedSchedules.length; i++) {
+      const [h, m] = displayedSchedules[i].start_time.split(':');
       const sessionMinutes = parseInt(h, 10) * 60 + parseInt(m, 10);
       if (sessionMinutes > currentTotalMinutes) return i;
     }
@@ -152,7 +163,7 @@ const Dashboard = () => {
             Today's Schedule
           </h2>
 
-          {schedules.length === 0 ? (
+          {displayedSchedules.length === 0 ? (
             <div className="surface-card p-12 text-center flex flex-col items-center justify-center bg-surface/30 border-dashed border-2 border-surface-border">
               <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center mb-6">
                 <CalendarIcon className="w-8 h-8 text-text-muted opacity-40" />
@@ -167,7 +178,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {schedules.map((session, index) => (
+              {displayedSchedules.map((session, index) => (
                 <SessionCard
                   key={session.id}
                   session={session}
